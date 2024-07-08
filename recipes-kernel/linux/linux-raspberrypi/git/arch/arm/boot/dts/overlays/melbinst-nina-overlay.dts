@@ -1,0 +1,237 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/pinctrl/bcm2835.h>
+#include <dt-bindings/clock/bcm2835.h>
+
+/ {
+    compatible = "bcrm,bcm2711";
+
+        /* GPIO */
+        fragment@0 {
+                target = <&gpio>;
+                __overlay__ {
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&spi4_cs_pins &spi4_pins &fpga_pins &analog_input_pins>;                      
+                        spi0_cs_pins: spi0_cs_pins {
+                                brcm,pins = <8>;
+                                brcm,function = <1>;    // GPIO out
+                        };
+                        spi4_cs_pins: spi4_cs_pins {
+                                brcm,pins = <4>;
+                                brcm,function = <1>;    // GPIO out
+                        };
+                        spi4_pins: spi4_pins {
+                                brcm,pins = <5 6 7>;
+                                brcm,function = <BCM2835_FSEL_ALT3>;
+                        };                        
+                        lcd_panel_pins: lcd_panel_pins {
+                                pins = "gpio25";
+                                function = "alt1";
+                                bias-pull-up;
+                                output-low;
+                        };                      
+                        fpga_pins: fpga_pins {
+                                brcm,pins = <2 3 16 17 18 20 21 24>;
+                                brcm,function = <1 1 1 1 0 0 0 1>;
+                                brcm,pull = <0 0 0 0 1 2 2 0>;
+                        };
+                        analog_input_pins: analog_input_pins {
+                                brcm,pins = <26>;
+                                brcm,function = <0>;    // GPIO in
+                        };
+                };                                
+        };
+
+        /* UART 0 - used for debugging */
+        fragment@1 {
+                target = <&uart1_pins>;
+                __dormant__ {
+                        brcm,pins = <14 15>;
+                        brcm,function = <4>;    // ALT0
+                        brcm,pull = <0 2>;
+                };
+        };	
+        fragment@2 {
+                target = <&uart0>;
+                __overlay__ {
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&uart0_pins>;
+                        status = "okay";
+                };
+        };
+
+        /* UART 5 - MIDI */
+        fragment@3 {
+                target = <&uart5_pins>;
+                __overlay__ {
+                        brcm,pins = <12 13>;
+                        brcm,pull = <0 0>;
+                };
+        };	
+        fragment@4 {
+                target = <&uart5>;
+                __overlay__ {
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&uart5_pins>;
+                        status = "okay";
+                };
+        };
+        fragment@5 {
+                target-path = "/clocks";
+                __overlay__ {
+                        midi_clk: midi_clk {
+                        compatible = "fixed-clock";
+                        #clock-cells = <0>;
+                        clock-output-names = "uart5_pclk";
+                        clock-frequency = <58982400>;
+                        };
+                };
+        };
+        fragment@6 {
+                target = <&uart5>;
+                __overlay__ {
+                        clocks = <&midi_clk>,
+                        <&clocks BCM2835_CLOCK_VPU>;
+                        dmas = <&dma 21>, <&dma 22>;
+                        dma-names = "tx", "rx";
+                };
+        };         
+
+        /* SPI0 */
+	fragment@7 {
+		target = <&spi0_cs_pins>;
+		__overlay__ {
+			brcm,pins = <8>;
+		};
+	};
+        fragment@8 {
+                target = <&spi0>;
+                __overlay__ {
+                        compatible = "brcm,rtdm-bcm2835-spi";
+                        id-spi0;
+                        pinctrl-0 = <&spi0_pins &spi0_cs_pins>;
+                        cs-gpios = <&gpio 8 1>;
+                        status = "okay";
+                };
+        };
+
+        /* SPI4 */
+	fragment@9 {
+		target = <&spi4_cs_pins>;
+		__overlay__ {
+			brcm,pins = <4>;
+		};
+	};        
+        fragment@10 {
+                target = <&spi4>;
+                __overlay__ {
+                        compatible = "brcm,rtdm-bcm2835-spi";
+                        id-spi4;
+                        pinctrl-0 = <&spi4_pins &spi4_cs_pins>;
+                        cs-gpios = <&gpio 4 1>;
+                        dmas = <&dma 19>, <&dma 20>;
+                        dma-names = "tx", "rx";
+                        status = "okay";
+                };
+        };         
+
+        /* DSI LCD */
+        fragment@11 {
+                target=<&dsi1>;
+                __overlay__ {
+                        status = "okay";
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+
+                        port {
+                                dsi1_out_port: endpoint {
+                                remote-endpoint = <&panel_dsi_in>;
+                                };
+                        };
+                        lcd_panel: panel@0 {
+                                compatible = "techstar,ts8550b";
+                                reg=<0>;
+                                pinctrl-names = "default";
+                                pinctrl-0 = <&lcd_panel_pins>;
+                                label= "Melbourne Instruments LCD Display";
+                                reset-gpios = <&gpio 25 0>;     // Active high
+                                vc4_dsi = <&dsi1>;
+                                port {
+                                        panel_dsi_in: endpoint {
+                                                remote-endpoint = <&dsi1_out_port>;
+                                        };
+                                };
+                        };
+                };
+        };
+
+        /* I2C0 */
+        fragment@12 {
+                target = <&i2c0_pins>;
+                __overlay__ {
+                        brcm,pins = <44 45>;
+                        brcm,function = <5>; /* alt1 */
+                };
+        };	
+        fragment@13 {
+                target = <&i2c0if>;
+                __overlay__ {
+                        status = "okay";
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&i2c0_pins>;
+                        clock-frequency = <400000>;
+                };
+        };
+        fragment@14 {
+                target = <&i2c0mux>;
+                __overlay__ {
+                        status = "disabled";
+                };
+        };
+        fragment@15 {
+                target-path = "/aliases";
+                __overlay__ {
+                        i2c0 = "/soc/i2c@7e205000";
+                };
+	};
+
+        /* I2C6 */
+        fragment@16 {
+                target = <&i2c6_pins>;
+                __overlay__ {
+                        brcm,pins = <22 23>;
+                };
+        };        
+        fragment@17 {
+                target = <&i2c6>;
+                frag0: __overlay__ {
+                        status = "okay";
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&i2c6_pins>;
+                        clock-frequency = <1000000>;
+                };
+        };            
+
+        /* Disable HDMI ports */
+        fragment@18 {
+                target = <&hdmi0>;
+                __overlay__ {
+                        status = "disabled";
+                };
+        };
+        fragment@19 {
+                target = <&hdmi1>;
+                __overlay__ {
+                        status = "disabled";
+                };
+        };
+
+        /* Disable I2C1 */
+        fragment@20 {
+                target = <&i2c1>;
+                __overlay__ {
+                        status = "disabled";
+                };
+        };               
+};

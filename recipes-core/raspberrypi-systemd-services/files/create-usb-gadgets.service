@@ -1,0 +1,12 @@
+[Unit]
+Description=Create USB gadgets
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/create-usb-gadgets.sh
+StandardInput=tty
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

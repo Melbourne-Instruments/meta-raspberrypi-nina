@@ -1,0 +1,13 @@
+diff --git a/extra/dt-blob.dts b/extra/dt-blob.dts
+index d2cae429bd6..5e809a592dd 100644
+--- a/extra/dt-blob.dts
++++ b/extra/dt-blob.dts
+@@ -1755,6 +1755,8 @@
+             }; // pin
+             pin@p14 { function = "uart0";  termination = "no_pulling"; drive_strength_mA = < 8 >; }; // TX uart0
+             pin@p15 { function = "uart0";  termination = "pull_up"; drive_strength_mA = < 8 >; }; // RX uart0
++            pin@p44 { function = "i2c0";   termination = "pull_up"; drive_strength_mA = < 16 >; }; // I2C 0 SDA
++            pin@p45 { function = "i2c1";   termination = "pull_up"; drive_strength_mA = < 16 >; }; // I2C 0 SCL
+             pin@p46 { function = "input";   termination = "pull_up";    }; // SMPS_SCL
+             pin@p47 { function = "input";   termination = "pull_up";    }; // SMPS_SDA
+             pin@p48 { function = "sdcard"; termination = "pull_up";    drive_strength_mA = < 8 >; }; // SD CLK

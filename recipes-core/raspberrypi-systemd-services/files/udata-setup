@@ -1,0 +1,50 @@
+#!/bin/bash
+#echo "Changing udata perms to user"
+chown -R nina:nina /udata
+rm -f /udata/change_perms
+rm -rf /udata/.elk-system/var
+mkdir -p /udata/.elk-system
+echo "Setting elk-system.conf in /udata"
+cp /etc/elk-system.conf /udata/.elk-system
+
+# Setup Nina
+mkdir /udata/nina
+mkdir /udata/nina/presets
+mkdir /udata/nina/presets/layers
+mkdir /udata/nina/presets/patches
+mkdir /udata/nina/wavetables
+mkdir /udata/nina/tuning
+mkdir /udata/nina/calibration
+echo "1" > /udata/nina/calibration/1_1_mix_cal.txt
+mv /udata/config.json /udata/nina
+chmod 0666 /udata/nina/config.json
+mv /udata/global_params.json /udata/nina
+chmod 0666 /udata/nina/global_params.json
+mkdir /udata/nina/presets/patches/001_BANK
+mv /udata/001_TEST_VCO_1_TRI.json /udata/nina/presets/patches/001_BANK
+mv /udata/002_TEST_VCO_1_SQR.json /udata/nina/presets/patches/001_BANK
+mv /udata/003_TEST_VCO_2_TRI.json /udata/nina/presets/patches/001_BANK
+mv /udata/004_TEST_VCO_2_SQR.json /udata/nina/presets/patches/001_BANK
+mv /udata/005_TEST_VCO_2_SYNC.json /udata/nina/presets/patches/001_BANK
+mv /udata/006_TEST_OSC_3.json /udata/nina/presets/patches/001_BANK
+mv /udata/007_VCF_SELF_CHIRP.json /udata/nina/presets/patches/001_BANK
+mv /udata/008_VCA_LEFT_RIGHT_SPIN.json /udata/nina/presets/patches/001_BANK
+mv /udata/009_TEST_FX.json /udata/nina/presets/patches/001_BANK
+mv /udata/010_VOICE_SILENCE_TEST.json /udata/nina/presets/patches/001_BANK
+mv /udata/011_TEST_PLAY.json /udata/nina/presets/patches/001_BANK
+mv /udata/012_VCF_SELF_OSC.json /udata/nina/presets/patches/001_BANK
+mv /udata/013_TEST_ARP.json /udata/nina/presets/patches/001_BANK
+mv /udata/014_TEST_VCO_1_SUB.json /udata/nina/presets/patches/001_BANK
+mv /udata/015_TEST_ENCODERS.json /udata/nina/presets/patches/001_BANK
+mv /udata/016_TEST_VCO_WIDTH.json /udata/nina/presets/patches/001_BANK
+mv /udata/017_TEST_TEMPLATE.json /udata/nina/presets/patches/001_BANK
+chmod 0666 /udata/nina/presets/patches/001_BANK/*
+for i in $(seq -f "%03g" 2 32)
+do
+  mkdir /udata/nina/presets/patches/${i}_BANK
+done
+
+tar -xf /udata/wavetables.tar.xz -C /udata/nina/wavetables
+chmod 0666 /udata/nina/wavetables/*
+rm /udata/wavetables.tar.xz
+sync

@@ -1,0 +1,719 @@
+diff --git a/arch/arm/boot/dts/overlays/Makefile b/arch/arm/boot/dts/overlays/Makefile
+index b6abddcb2615..a44e9568260e 100644
+--- a/arch/arm/boot/dts/overlays/Makefile
++++ b/arch/arm/boot/dts/overlays/Makefile
+@@ -114,6 +114,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
+ 	mcp3202.dtbo \
+ 	mcp342x.dtbo \
+ 	media-center.dtbo \
++	melbinst-nina.dtbo \
+ 	merus-amp.dtbo \
+ 	midi-uart0.dtbo \
+ 	midi-uart1.dtbo \
+diff --git a/drivers/gpio/gpiolib.c b/drivers/gpio/gpiolib.c
+index 1e6bc8ecb5dc..0ac2760db168 100644
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -3959,8 +3959,8 @@ void gpiochip_enable_irq(struct gpio_chip *chip, unsigned int offset)
+ {
+ 	struct gpio_desc *desc = gpiochip_get_desc(chip, offset);
+ 
+-	if (!IS_ERR(desc) &&
+-	    !WARN_ON(!test_bit(FLAG_USED_AS_IRQ, &desc->flags))) {
++	if (!IS_ERR(desc)) { //&&
++	    //!WARN_ON(!test_bit(FLAG_USED_AS_IRQ, &desc->flags))) {
+ 		/*
+ 		 * We must not be output when using IRQ UNLESS we are
+ 		 * open drain.
+diff --git a/drivers/gpu/drm/vc4/vc4_drv.c b/drivers/gpu/drm/vc4/vc4_drv.c
+index 2e1b2e51aff0..1ed82b7bbce7 100644
+--- a/drivers/gpu/drm/vc4/vc4_drv.c
++++ b/drivers/gpu/drm/vc4/vc4_drv.c
+@@ -326,7 +326,7 @@ static int vc4_drm_bind(struct device *dev)
+ 	if (ret < 0)
+ 		goto unbind_all;
+ 
+-	drm_fbdev_generic_setup(drm, 16);
++	drm_fbdev_generic_setup(drm, 32);
+ 
+ 	return 0;
+ 
+diff --git a/drivers/gpu/drm/vc4/vc4_drv.h b/drivers/gpu/drm/vc4/vc4_drv.h
+index 9e825c81ad0c..872592716b42 100644
+--- a/drivers/gpu/drm/vc4/vc4_drv.h
++++ b/drivers/gpu/drm/vc4/vc4_drv.h
+@@ -79,6 +79,7 @@ struct vc4_dev {
+ 	struct vc4_hvs *hvs;
+ 	struct vc4_v3d *v3d;
+ 	struct vc4_dpi *dpi;
++	struct vc4_dsi *dsi0;
+ 	struct vc4_dsi *dsi1;
+ 	struct vc4_vec *vec;
+ 	struct vc4_txp *txp;
+diff --git a/drivers/gpu/drm/vc4/vc4_dsi.c b/drivers/gpu/drm/vc4/vc4_dsi.c
+index 3448b314d361..194525cafce7 100644
+--- a/drivers/gpu/drm/vc4/vc4_dsi.c
++++ b/drivers/gpu/drm/vc4/vc4_dsi.c
+@@ -304,11 +304,11 @@
+ # define DSI0_PHY_AFEC0_RESET			BIT(11)
+ # define DSI1_PHY_AFEC0_PD_BG			BIT(11)
+ # define DSI0_PHY_AFEC0_PD			BIT(10)
+-# define DSI1_PHY_AFEC0_PD_DLANE3		BIT(10)
++# define DSI1_PHY_AFEC0_PD_DLANE3		BIT(8)
+ # define DSI0_PHY_AFEC0_PD_BG			BIT(9)
+ # define DSI1_PHY_AFEC0_PD_DLANE2		BIT(9)
+ # define DSI0_PHY_AFEC0_PD_DLANE1		BIT(8)
+-# define DSI1_PHY_AFEC0_PD_DLANE1		BIT(8)
++# define DSI1_PHY_AFEC0_PD_DLANE1		BIT(10)
+ # define DSI_PHY_AFEC0_PTATADJ_MASK		VC4_MASK(7, 4)
+ # define DSI_PHY_AFEC0_PTATADJ_SHIFT		4
+ # define DSI_PHY_AFEC0_CTATADJ_MASK		VC4_MASK(3, 0)
+@@ -544,6 +544,8 @@ struct vc4_dsi {
+ 
+ #define host_to_dsi(host) container_of(host, struct vc4_dsi, dsi_host)
+ 
++static uint enabled = false;
++
+ static inline void
+ dsi_dma_workaround_write(struct vc4_dsi *dsi, u32 offset, u32 val)
+ {
+@@ -753,12 +755,12 @@ static void vc4_dsi_encoder_disable(struct drm_encoder *encoder)
+ 	struct device *dev = &dsi->pdev->dev;
+ 
+ 	drm_bridge_disable(dsi->bridge);
+-	vc4_dsi_ulps(dsi, true);
++	//vc4_dsi_ulps(dsi, true);
+ 	drm_bridge_post_disable(dsi->bridge);
+ 
+-	clk_disable_unprepare(dsi->pll_phy_clock);
+-	clk_disable_unprepare(dsi->escape_clock);
+-	clk_disable_unprepare(dsi->pixel_clock);
++	//clk_disable_unprepare(dsi->pll_phy_clock);
++	//clk_disable_unprepare(dsi->escape_clock);
++	//clk_disable_unprepare(dsi->pixel_clock);
+ 
+ 	pm_runtime_put(dev);
+ }
+@@ -791,11 +793,9 @@ static bool vc4_dsi_encoder_mode_fixup(struct drm_encoder *encoder,
+ 	/* Find what divider gets us a faster clock than the requested
+ 	 * pixel clock.
+ 	 */
+-	for (divider = 1; divider < 8; divider++) {
+-		if (parent_rate / divider < pll_clock) {
+-			divider--;
++	for (divider = 1; divider < 7; divider++) {
++		if (parent_rate / (divider + 1) < pll_clock)
+ 			break;
+-		}
+ 	}
+ 
+ 	/* Now that we've picked a PLL divider, calculate back to its
+@@ -831,252 +831,256 @@ static void vc4_dsi_encoder_enable(struct drm_encoder *encoder)
+ 	unsigned long phy_clock;
+ 	int ret;
+ 
+-	ret = pm_runtime_get_sync(dev);
+-	if (ret) {
+-		DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->port);
+-		return;
+-	}
+-
+-	if (debug_dump_regs) {
+-		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
+-		dev_info(&dsi->pdev->dev, "DSI regs before:\n");
+-		drm_print_regset32(&p, &dsi->regset);
+-	}
+-
+-	/* Round up the clk_set_rate() request slightly, since
+-	 * PLLD_DSI1 is an integer divider and its rate selection will
+-	 * never round up.
+-	 */
+-	phy_clock = (pixel_clock_hz + 1000) * dsi->divider;
+-	ret = clk_set_rate(dsi->pll_phy_clock, phy_clock);
+-	if (ret) {
+-		dev_err(&dsi->pdev->dev,
+-			"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
+-	}
+-
+-	/* Reset the DSI and all its fifos. */
+-	DSI_PORT_WRITE(CTRL,
+-		       DSI_CTRL_SOFT_RESET_CFG |
+-		       DSI_PORT_BIT(CTRL_RESET_FIFOS));
++	if (!enabled)
++	{
++		ret = pm_runtime_get_sync(dev);
++		if (ret < 0) {
++			DRM_ERROR("Failed to runtime PM enable on DSI%d\n", dsi->port);
++			return;
++		}
+ 
+-	DSI_PORT_WRITE(CTRL,
+-		       DSI_CTRL_HSDT_EOT_DISABLE |
+-		       DSI_CTRL_RX_LPDT_EOT_DISABLE);
++		if (debug_dump_regs) {
++			struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
++			dev_info(&dsi->pdev->dev, "DSI regs before:\n");
++			drm_print_regset32(&p, &dsi->regset);
++		}
+ 
+-	/* Clear all stat bits so we see what has happened during enable. */
+-	DSI_PORT_WRITE(STAT, DSI_PORT_READ(STAT));
++		/* Round up the clk_set_rate() request slightly, since
++		* PLLD_DSI1 is an integer divider and its rate selection will
++		* never round up.
++		*/
++		phy_clock = (pixel_clock_hz + 1000) * dsi->divider;
++		ret = clk_set_rate(dsi->pll_phy_clock, phy_clock);
++		if (ret) {
++			dev_err(&dsi->pdev->dev,
++				"Failed to set phy clock to %ld: %d\n", phy_clock, ret);
++		}
+ 
+-	/* Set AFE CTR00/CTR1 to release powerdown of analog. */
+-	if (dsi->port == 0) {
+-		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
+-			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ));
++		/* Reset the DSI and all its fifos. */
++		DSI_PORT_WRITE(CTRL,
++				DSI_CTRL_SOFT_RESET_CFG |
++				DSI_PORT_BIT(CTRL_RESET_FIFOS));
+ 
+-		if (dsi->lanes < 2)
+-			afec0 |= DSI0_PHY_AFEC0_PD_DLANE1;
++		DSI_PORT_WRITE(CTRL,
++				DSI_CTRL_HSDT_EOT_DISABLE |
++				DSI_CTRL_RX_LPDT_EOT_DISABLE);
+ 
+-		if (!(dsi->mode_flags & MIPI_DSI_MODE_VIDEO))
+-			afec0 |= DSI0_PHY_AFEC0_RESET;
++		/* Clear all stat bits so we see what has happened during enable. */
++		DSI_PORT_WRITE(STAT, DSI_PORT_READ(STAT));
+ 
+-		DSI_PORT_WRITE(PHY_AFEC0, afec0);
++		/* Set AFE CTR00/CTR1 to release powerdown of analog. */
++		if (dsi->port == 0) {
++			u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
++					VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ));
+ 
+-		DSI_PORT_WRITE(PHY_AFEC1,
+-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE1) |
+-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE0) |
+-			       VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_CLANE));
+-	} else {
+-		u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
+-			     VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ) |
+-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_CLANE) |
+-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE0) |
+-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE1) |
+-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE2) |
+-			     VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE3));
++			if (dsi->lanes < 2)
++				afec0 |= DSI0_PHY_AFEC0_PD_DLANE1;
+ 
+-		if (dsi->lanes < 4)
+-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE3;
+-		if (dsi->lanes < 3)
+-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE2;
+-		if (dsi->lanes < 2)
+-			afec0 |= DSI1_PHY_AFEC0_PD_DLANE1;
++			if (!(dsi->mode_flags & MIPI_DSI_MODE_VIDEO))
++				afec0 |= DSI0_PHY_AFEC0_RESET;
+ 
+-		afec0 |= DSI1_PHY_AFEC0_RESET;
++			DSI_PORT_WRITE(PHY_AFEC0, afec0);
+ 
+-		DSI_PORT_WRITE(PHY_AFEC0, afec0);
++			DSI_PORT_WRITE(PHY_AFEC1,
++					VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE1) |
++					VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_DLANE0) |
++					VC4_SET_FIELD(6,  DSI0_PHY_AFEC1_IDR_CLANE));
++		} else {
++			u32 afec0 = (VC4_SET_FIELD(7, DSI_PHY_AFEC0_PTATADJ) |
++					VC4_SET_FIELD(7, DSI_PHY_AFEC0_CTATADJ) |
++					VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_CLANE) |
++					VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE0) |
++					VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE1) |
++					VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE2) |
++					VC4_SET_FIELD(6, DSI1_PHY_AFEC0_IDR_DLANE3));
+ 
+-		DSI_PORT_WRITE(PHY_AFEC1, 0);
++			if (dsi->lanes < 4)
++				afec0 |= DSI1_PHY_AFEC0_PD_DLANE3;
++			if (dsi->lanes < 3)
++				afec0 |= DSI1_PHY_AFEC0_PD_DLANE2;
++			if (dsi->lanes < 2)
++				afec0 |= DSI1_PHY_AFEC0_PD_DLANE1;
+ 
+-		/* AFEC reset hold time */
+-		mdelay(1);
+-	}
++			afec0 |= DSI1_PHY_AFEC0_RESET;
+ 
+-	ret = clk_prepare_enable(dsi->escape_clock);
+-	if (ret) {
+-		DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
+-		return;
+-	}
++			DSI_PORT_WRITE(PHY_AFEC0, afec0);
+ 
+-	ret = clk_prepare_enable(dsi->pll_phy_clock);
+-	if (ret) {
+-		DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
+-		return;
+-	}
++			DSI_PORT_WRITE(PHY_AFEC1, 0);
+ 
+-	hs_clock = clk_get_rate(dsi->pll_phy_clock);
++			/* AFEC reset hold time */
++			mdelay(1);
++		}
+ 
+-	/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
+-	 * not the pixel clock rate.  DSIxP take from the APHY's byte,
+-	 * DDR2, or DDR4 clock (we use byte) and feed into the PV at
+-	 * that rate.  Separately, a value derived from PIX_CLK_DIV
+-	 * and HS_CLKC is fed into the PV to divide down to the actual
+-	 * pixel clock for pushing pixels into DSI.
+-	 */
+-	dsip_clock = phy_clock / 8;
+-	ret = clk_set_rate(dsi->pixel_clock, dsip_clock);
+-	if (ret) {
+-		dev_err(dev, "Failed to set pixel clock to %ldHz: %d\n",
+-			dsip_clock, ret);
+-	}
++		ret = clk_prepare_enable(dsi->escape_clock);
++		if (ret) {
++			DRM_ERROR("Failed to turn on DSI escape clock: %d\n", ret);
++			return;
++		}
+ 
+-	ret = clk_prepare_enable(dsi->pixel_clock);
+-	if (ret) {
+-		DRM_ERROR("Failed to turn on DSI pixel clock: %d\n", ret);
+-		return;
+-	}
++		ret = clk_prepare_enable(dsi->pll_phy_clock);
++		if (ret) {
++			DRM_ERROR("Failed to turn on DSI PLL: %d\n", ret);
++			return;
++		}
+ 
+-	/* How many ns one DSI unit interval is.  Note that the clock
+-	 * is DDR, so there's an extra divide by 2.
+-	 */
+-	ui_ns = DIV_ROUND_UP(500000000, hs_clock);
+-
+-	DSI_PORT_WRITE(HS_CLT0,
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 262, 0),
+-				     DSI_HS_CLT0_CZERO) |
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 0, 8),
+-				     DSI_HS_CLT0_CPRE) |
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 38, 0),
+-				     DSI_HS_CLT0_CPREP));
+-
+-	DSI_PORT_WRITE(HS_CLT1,
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 0),
+-				     DSI_HS_CLT1_CTRAIL) |
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 52),
+-				     DSI_HS_CLT1_CPOST));
+-
+-	DSI_PORT_WRITE(HS_CLT2,
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 1000000, 0),
+-				     DSI_HS_CLT2_WUP));
+-
+-	DSI_PORT_WRITE(HS_DLT3,
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 100, 0),
+-				     DSI_HS_DLT3_EXIT) |
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 105, 6),
+-				     DSI_HS_DLT3_ZERO) |
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, 40, 4),
+-				     DSI_HS_DLT3_PRE));
+-
+-	DSI_PORT_WRITE(HS_DLT4,
+-		       VC4_SET_FIELD(dsi_hs_timing(ui_ns, lpx * ESC_TIME_NS, 0),
+-				     DSI_HS_DLT4_LPX) |
+-		       VC4_SET_FIELD(max(dsi_hs_timing(ui_ns, 0, 8),
+-					 dsi_hs_timing(ui_ns, 60, 4)),
+-				     DSI_HS_DLT4_TRAIL) |
+-		       VC4_SET_FIELD(0, DSI_HS_DLT4_ANLAT));
+-
+-	/* T_INIT is how long STOP is driven after power-up to
+-	 * indicate to the slave (also coming out of power-up) that
+-	 * master init is complete, and should be greater than the
+-	 * maximum of two value: T_INIT,MASTER and T_INIT,SLAVE.  The
+-	 * D-PHY spec gives a minimum 100us for T_INIT,MASTER and
+-	 * T_INIT,SLAVE, while allowing protocols on top of it to give
+-	 * greater minimums.  The vc4 firmware uses an extremely
+-	 * conservative 5ms, and we maintain that here.
+-	 */
+-	DSI_PORT_WRITE(HS_DLT5, VC4_SET_FIELD(dsi_hs_timing(ui_ns,
+-							    5 * 1000 * 1000, 0),
+-					      DSI_HS_DLT5_INIT));
+-
+-	DSI_PORT_WRITE(HS_DLT6,
+-		       VC4_SET_FIELD(lpx * 5, DSI_HS_DLT6_TA_GET) |
+-		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_TA_SURE) |
+-		       VC4_SET_FIELD(lpx * 4, DSI_HS_DLT6_TA_GO) |
+-		       VC4_SET_FIELD(lpx, DSI_HS_DLT6_LP_LPX));
+-
+-	DSI_PORT_WRITE(HS_DLT7,
+-		       VC4_SET_FIELD(dsi_esc_timing(1000000),
+-				     DSI_HS_DLT7_LP_WUP));
+-
+-	DSI_PORT_WRITE(PHYC,
+-		       DSI_PHYC_DLANE0_ENABLE |
+-		       (dsi->lanes >= 2 ? DSI_PHYC_DLANE1_ENABLE : 0) |
+-		       (dsi->lanes >= 3 ? DSI_PHYC_DLANE2_ENABLE : 0) |
+-		       (dsi->lanes >= 4 ? DSI_PHYC_DLANE3_ENABLE : 0) |
+-		       DSI_PORT_BIT(PHYC_CLANE_ENABLE) |
+-		       ((dsi->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ?
+-			0 : DSI_PORT_BIT(PHYC_HS_CLK_CONTINUOUS)) |
+-		       (dsi->port == 0 ?
+-			VC4_SET_FIELD(lpx - 1, DSI0_PHYC_ESC_CLK_LPDT) :
+-			VC4_SET_FIELD(lpx - 1, DSI1_PHYC_ESC_CLK_LPDT)));
++		hs_clock = clk_get_rate(dsi->pll_phy_clock);
++
++		/* Yes, we set the DSI0P/DSI1P pixel clock to the byte rate,
++		* not the pixel clock rate.  DSIxP take from the APHY's byte,
++		* DDR2, or DDR4 clock (we use byte) and feed into the PV at
++		* that rate.  Separately, a value derived from PIX_CLK_DIV
++		* and HS_CLKC is fed into the PV to divide down to the actual
++		* pixel clock for pushing pixels into DSI.
++		*/
++		dsip_clock = phy_clock / 8;
++		ret = clk_set_rate(dsi->pixel_clock, dsip_clock);
++		if (ret) {
++			dev_err(dev, "Failed to set pixel clock to %ldHz: %d\n",
++				dsip_clock, ret);
++		}
+ 
+-	DSI_PORT_WRITE(CTRL,
+-		       DSI_PORT_READ(CTRL) |
+-		       DSI_CTRL_CAL_BYTE);
+-
+-	/* HS timeout in HS clock cycles: disabled. */
+-	DSI_PORT_WRITE(HSTX_TO_CNT, 0);
+-	/* LP receive timeout in HS clocks. */
+-	DSI_PORT_WRITE(LPRX_TO_CNT, 0xffffff);
+-	/* Bus turnaround timeout */
+-	DSI_PORT_WRITE(TA_TO_CNT, 100000);
+-	/* Display reset sequence timeout */
+-	DSI_PORT_WRITE(PR_TO_CNT, 100000);
+-
+-	/* Set up DISP1 for transferring long command payloads through
+-	 * the pixfifo.
+-	 */
+-	DSI_PORT_WRITE(DISP1_CTRL,
+-		       VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
+-				     DSI_DISP1_PFORMAT) |
+-		       DSI_DISP1_ENABLE);
++		ret = clk_prepare_enable(dsi->pixel_clock);
++		if (ret) {
++			DRM_ERROR("Failed to turn on DSI pixel clock: %d\n", ret);
++			return;
++		}
+ 
+-	/* Ungate the block. */
+-	if (dsi->port == 0)
+-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
+-	else
+-		DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
++		/* How many ns one DSI unit interval is.  Note that the clock
++		* is DDR, so there's an extra divide by 2.
++		*/
++		ui_ns = DIV_ROUND_UP(500000000, hs_clock);
++
++		DSI_PORT_WRITE(HS_CLT0,
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 262, 0),
++						DSI_HS_CLT0_CZERO) |
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 0, 8),
++						DSI_HS_CLT0_CPRE) |
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 38, 0),
++						DSI_HS_CLT0_CPREP));
++
++		DSI_PORT_WRITE(HS_CLT1,
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 0),
++						DSI_HS_CLT1_CTRAIL) |
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 60, 52),
++						DSI_HS_CLT1_CPOST));
++
++		DSI_PORT_WRITE(HS_CLT2,
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 1000000, 0),
++						DSI_HS_CLT2_WUP));
++
++		DSI_PORT_WRITE(HS_DLT3,
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 100, 0),
++						DSI_HS_DLT3_EXIT) |
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 105, 6),
++						DSI_HS_DLT3_ZERO) |
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, 40, 4),
++						DSI_HS_DLT3_PRE));
++
++		DSI_PORT_WRITE(HS_DLT4,
++				VC4_SET_FIELD(dsi_hs_timing(ui_ns, lpx * ESC_TIME_NS, 0),
++						DSI_HS_DLT4_LPX) |
++				VC4_SET_FIELD(max(dsi_hs_timing(ui_ns, 0, 8),
++						dsi_hs_timing(ui_ns, 60, 4)),
++						DSI_HS_DLT4_TRAIL) |
++				VC4_SET_FIELD(0, DSI_HS_DLT4_ANLAT));
++
++		/* T_INIT is how long STOP is driven after power-up to
++		* indicate to the slave (also coming out of power-up) that
++		* master init is complete, and should be greater than the
++		* maximum of two value: T_INIT,MASTER and T_INIT,SLAVE.  The
++		* D-PHY spec gives a minimum 100us for T_INIT,MASTER and
++		* T_INIT,SLAVE, while allowing protocols on top of it to give
++		* greater minimums.  The vc4 firmware uses an extremely
++		* conservative 5ms, and we maintain that here.
++		*/
++		DSI_PORT_WRITE(HS_DLT5, VC4_SET_FIELD(dsi_hs_timing(ui_ns,
++									5 * 1000 * 1000, 0),
++							DSI_HS_DLT5_INIT));
++
++		DSI_PORT_WRITE(HS_DLT6,
++				VC4_SET_FIELD(lpx * 5, DSI_HS_DLT6_TA_GET) |
++				VC4_SET_FIELD(lpx, DSI_HS_DLT6_TA_SURE) |
++				VC4_SET_FIELD(lpx * 4, DSI_HS_DLT6_TA_GO) |
++				VC4_SET_FIELD(lpx, DSI_HS_DLT6_LP_LPX));
++
++		DSI_PORT_WRITE(HS_DLT7,
++				VC4_SET_FIELD(dsi_esc_timing(1000000),
++						DSI_HS_DLT7_LP_WUP));
++
++		DSI_PORT_WRITE(PHYC,
++				DSI_PHYC_DLANE0_ENABLE |
++				(dsi->lanes >= 2 ? DSI_PHYC_DLANE1_ENABLE : 0) |
++				(dsi->lanes >= 3 ? DSI_PHYC_DLANE2_ENABLE : 0) |
++				(dsi->lanes >= 4 ? DSI_PHYC_DLANE3_ENABLE : 0) |
++				DSI_PORT_BIT(PHYC_CLANE_ENABLE) |
++				((dsi->mode_flags & MIPI_DSI_CLOCK_NON_CONTINUOUS) ?
++				0 : DSI_PORT_BIT(PHYC_HS_CLK_CONTINUOUS)) |
++				(dsi->port == 0 ?
++				VC4_SET_FIELD(lpx - 1, DSI0_PHYC_ESC_CLK_LPDT) :
++				VC4_SET_FIELD(lpx - 1, DSI1_PHYC_ESC_CLK_LPDT)));
++
++		DSI_PORT_WRITE(CTRL,
++				DSI_PORT_READ(CTRL) |
++				DSI_CTRL_CAL_BYTE);
++
++		/* HS timeout in HS clock cycles: disabled. */
++		DSI_PORT_WRITE(HSTX_TO_CNT, 0);
++		/* LP receive timeout in HS clocks. */
++		DSI_PORT_WRITE(LPRX_TO_CNT, 0xffffff);
++		/* Bus turnaround timeout */
++		DSI_PORT_WRITE(TA_TO_CNT, 100000);
++		/* Display reset sequence timeout */
++		DSI_PORT_WRITE(PR_TO_CNT, 100000);
++
++		/* Set up DISP1 for transferring long command payloads through
++		* the pixfifo.
++		*/
++		DSI_PORT_WRITE(DISP1_CTRL,
++				VC4_SET_FIELD(DSI_DISP1_PFORMAT_32BIT_LE,
++						DSI_DISP1_PFORMAT) |
++				DSI_DISP1_ENABLE);
++
++		/* Ungate the block. */
++		if (dsi->port == 0)
++			DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI0_CTRL_CTRL0);
++		else
++			DSI_PORT_WRITE(CTRL, DSI_PORT_READ(CTRL) | DSI1_CTRL_EN);
+ 
+-	/* Bring AFE out of reset. */
+-	if (dsi->port == 0) {
+-	} else {
+-		DSI_PORT_WRITE(PHY_AFEC0,
+-			       DSI_PORT_READ(PHY_AFEC0) &
+-			       ~DSI1_PHY_AFEC0_RESET);
+-	}
++		/* Bring AFE out of reset. */
++		if (dsi->port == 0) {
++		} else {
++			DSI_PORT_WRITE(PHY_AFEC0,
++					DSI_PORT_READ(PHY_AFEC0) &
++					~DSI1_PHY_AFEC0_RESET);
++		}
+ 
+-	vc4_dsi_ulps(dsi, false);
++		vc4_dsi_ulps(dsi, false);
+ 
+-	drm_bridge_pre_enable(dsi->bridge);
++		drm_bridge_pre_enable(dsi->bridge);
+ 
+-	if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO) {
+-		DSI_PORT_WRITE(DISP0_CTRL,
+-			       VC4_SET_FIELD(dsi->divider,
+-					     DSI_DISP0_PIX_CLK_DIV) |
+-			       VC4_SET_FIELD(dsi->format, DSI_DISP0_PFORMAT) |
+-			       VC4_SET_FIELD(DSI_DISP0_LP_STOP_PERFRAME,
+-					     DSI_DISP0_LP_STOP_CTRL) |
+-			       DSI_DISP0_ST_END |
+-			       DSI_DISP0_ENABLE);
+-	} else {
+-		DSI_PORT_WRITE(DISP0_CTRL,
+-			       DSI_DISP0_COMMAND_MODE |
+-			       DSI_DISP0_ENABLE);
+-	}
++		if (dsi->mode_flags & MIPI_DSI_MODE_VIDEO) {
++			DSI_PORT_WRITE(DISP0_CTRL,
++					VC4_SET_FIELD(dsi->divider,
++							DSI_DISP0_PIX_CLK_DIV) |
++					VC4_SET_FIELD(dsi->format, DSI_DISP0_PFORMAT) |
++					VC4_SET_FIELD(DSI_DISP0_LP_STOP_PERFRAME,
++							DSI_DISP0_LP_STOP_CTRL) |
++					DSI_DISP0_ST_END |
++					DSI_DISP0_ENABLE);
++		} else {
++			DSI_PORT_WRITE(DISP0_CTRL,
++					DSI_DISP0_COMMAND_MODE |
++					DSI_DISP0_ENABLE);
++		}
+ 
+-	drm_bridge_enable(dsi->bridge);
++		drm_bridge_enable(dsi->bridge);
+ 
+-	if (debug_dump_regs) {
+-		struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
+-		dev_info(&dsi->pdev->dev, "DSI regs after:\n");
+-		drm_print_regset32(&p, &dsi->regset);
++		if (debug_dump_regs) {
++			struct drm_printer p = drm_info_printer(&dsi->pdev->dev);
++			dev_info(&dsi->pdev->dev, "DSI regs after:\n");
++			drm_print_regset32(&p, &dsi->regset);
++		}
++		enabled = true;
+ 	}
+ }
+ 
+@@ -1446,7 +1450,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
+ 	struct vc4_dsi_encoder *vc4_dsi_encoder;
+ 	struct drm_panel *panel;
+ 	const struct of_device_id *match;
+-	dma_cap_mask_t dma_mask;
++	//dma_cap_mask_t dma_mask;
+ 	int ret;
+ 
+ 	match = of_match_device(vc4_dsi_dt_match, dev);
+@@ -1488,25 +1492,25 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
+ 	 * Where possible managed resource providers are used, but the DMA channel
+ 	 * must - if acquired - be explicitly released prior to taking an error exit path.
+ 	 */
+-	if (dsi->port == 1) {
+-		dsi->reg_dma_mem = dmam_alloc_coherent(dev, 4,
+-						      &dsi->reg_dma_paddr,
+-						      GFP_KERNEL);
+-		if (!dsi->reg_dma_mem) {
+-			DRM_ERROR("Failed to get DMA memory\n");
+-			return -ENOMEM;
+-		}
+-
+-		dma_cap_zero(dma_mask);
+-		dma_cap_set(DMA_MEMCPY, dma_mask);
+-		dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
+-		if (IS_ERR(dsi->reg_dma_chan)) {
+-			ret = PTR_ERR(dsi->reg_dma_chan);
+-			if (ret != -EPROBE_DEFER)
+-				DRM_ERROR("Failed to get DMA channel: %d\n",
+-					  ret);
+-			return ret;
+-		}
++	//if (dsi->port == 1) {
++	//	dsi->reg_dma_mem = dmam_alloc_coherent(dev, 4,
++	//					      &dsi->reg_dma_paddr,
++	//					      GFP_KERNEL);
++	//	if (!dsi->reg_dma_mem) {
++	//		DRM_ERROR("Failed to get DMA memory\n");
++	//		return -ENOMEM;
++	//	}
++
++	//	dma_cap_zero(dma_mask);
++	//	dma_cap_set(DMA_MEMCPY, dma_mask);
++	//	dsi->reg_dma_chan = dma_request_chan_by_mask(&dma_mask);
++	//	if (IS_ERR(dsi->reg_dma_chan)) {
++	//		ret = PTR_ERR(dsi->reg_dma_chan);
++	//		if (ret != -EPROBE_DEFER)
++	//			DRM_ERROR("Failed to get DMA channel: %d\n",
++	//				  ret);
++	//		return ret;
++	//	}
+ 
+ 		/* From here on, any error exits must release the dma channel */
+ 
+@@ -1514,9 +1518,9 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
+ 		 * struct resource for the regs gives us the bus address
+ 		 * instead.
+ 		 */
+-		dsi->reg_paddr = be32_to_cpup(of_get_address(dev->of_node,
+-							     0, NULL, NULL));
+-	}
++	//	dsi->reg_paddr = be32_to_cpup(of_get_address(dev->of_node,
++	//						     0, NULL, NULL));
++	//}
+ 
+ 	init_completion(&dsi->xfer_completion);
+ 	/* At startup enable error-reporting interrupts and nothing else. */
+@@ -1627,7 +1631,10 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
+ 	return 0;
+ 
+ rel_dma_exit:
+-	dma_release_channel(dsi->reg_dma_chan);
++    if (dsi->reg_dma_chan) {
++		dma_release_channel(dsi->reg_dma_chan);
++		dsi->reg_dma_chan = NULL;
++	}
+ 
+ 	return ret;
+ }
+@@ -1644,7 +1651,10 @@ static void vc4_dsi_unbind(struct device *dev, struct device *master,
+ 
+ 	vc4_dsi_encoder_destroy(dsi->encoder);
+ 
+-	dma_release_channel(dsi->reg_dma_chan);
++	if (dsi->reg_dma_chan) {
++		dma_release_channel(dsi->reg_dma_chan);
++		dsi->reg_dma_chan = NULL;
++	}
+ 
+ 	if (dsi->port == 1)
+ 		vc4->dsi1 = NULL;
+diff --git a/drivers/i2c/i2c-dev.c b/drivers/i2c/i2c-dev.c
+index 94beacc41302..e5e1885b0b89 100644
+--- a/drivers/i2c/i2c-dev.c
++++ b/drivers/i2c/i2c-dev.c
+@@ -138,8 +138,8 @@ static ssize_t i2cdev_read(struct file *file, char __user *buf, size_t count,
+ 
+ 	struct i2c_client *client = file->private_data;
+ 
+-	if (count > 8192)
+-		count = 8192;
++	//if (count > 8192)
++	//	count = 8192;
+ 
+ 	tmp = kmalloc(count, GFP_KERNEL);
+ 	if (tmp == NULL)
+@@ -162,8 +162,8 @@ static ssize_t i2cdev_write(struct file *file, const char __user *buf,
+ 	char *tmp;
+ 	struct i2c_client *client = file->private_data;
+ 
+-	if (count > 8192)
+-		count = 8192;
++	//if (count > 8192)
++	//	count = 8192;
+ 
+ 	tmp = memdup_user(buf, count);
+ 	if (IS_ERR(tmp))
+@@ -247,10 +247,10 @@ static noinline int i2cdev_ioctl_rdwr(struct i2c_client *client,
+ 	res = 0;
+ 	for (i = 0; i < nmsgs; i++) {
+ 		/* Limit the size of the message to a sane amount */
+-		if (msgs[i].len > 8192) {
+-			res = -EINVAL;
+-			break;
+-		}
++		//if (msgs[i].len > 8192) {
++		//	res = -EINVAL;
++		//	break;
++		//}
+ 
+ 		data_ptrs[i] = (u8 __user *)msgs[i].buf;
+ 		msgs[i].buf = memdup_user(data_ptrs[i], msgs[i].len);
