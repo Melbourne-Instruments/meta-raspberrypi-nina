@@ -3,7 +3,7 @@ LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=4a0f8ad6a793571b331b0e19e3dd925c"
 PV = "1.0.0"
 
-SRC_URI = "https://github.com/Melbourne-Instruments/panel-sitronix-st7701-driver.git"
+SRC_URI = "git://github.com/Melbourne-Instruments/panel-sitronix-st7701-driver.git"
 SRCREV = "8aa2c3bd4167e4a2d137b48cc15f801ef912d21f"
 
 inherit module
